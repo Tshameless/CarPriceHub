@@ -3,7 +3,8 @@ use axum::{
     extract::ws::{Message, WebSocket, WebSocketUpgrade},
     response::IntoResponse,
 };
-use carpricehub_shared::{WsMessage, Uuid};
+use carpricehub_shared::WsMessage;
+use uuid::Uuid;
 use futures::{sink::SinkExt, stream::StreamExt};
 use std::collections::HashMap;
 use std::sync::Arc;

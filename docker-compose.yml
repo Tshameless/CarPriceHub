@@ -1,0 +1,101 @@
+version: '3.8'
+
+services:
+  # ── PostgreSQL 数据库 ──────────────────────────────
+  postgres:
+    image: postgres:15-alpine
+    container_name: carpricehub-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: carpricehub
+      POSTGRES_USER: carpricehub_user
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ../migrations/001_init_schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ../migrations/002_seed_data.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
+    ports:
+      - "5432:5432"
+    networks:
+      - carpricehub-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U carpricehub_user -d carpricehub"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Redis 缓存 (可选) ─────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: carpricehub-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - carpricehub-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # ── 后端 API 服务 ────────────────────────────────
+  backend:
+    build:
+      context: ./backend-node
+      dockerfile: Dockerfile
+    container_name: carpricehub-api
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 8080
+      DATABASE_URL: postgresql://carpricehub_user:${DB_PASSWORD:-changeme}@postgres:5432/carpricehub
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:-your-secret-key-change-in-production}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - carpricehub-network
+    healthcheck:
+      test: ["CMD", "node", "healthcheck.js"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+  # ── 前端 Web 服务 ────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: carpricehub-web
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - carpricehub-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
+# ── 网络配置 ──────────────────────────────────────
+networks:
+  carpricehub-network:
+    driver: bridge
+
+# ── 数据卷 ────────────────────────────────────────
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local

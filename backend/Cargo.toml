@@ -24,6 +24,7 @@ rand = { workspace = true }
 
 # WebSocket
 tower-http = { version = "0.5", features = ["cors", "trace", "fs"] }
+futures = "0.3"
 
 # Redis
 redis = { version = "0.24", features = ["tokio-comp", "connection-manager"] }

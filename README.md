@@ -21,7 +21,7 @@
 │   │   └── types/        # TypeScript 类型定义
 │   └── package.json
 │
-├── backend/           # Rust Axum 后端
+├── backend/           # Rust Axum 后端 (生产环境)
 │   ├── src/
 │   │   ├── main.rs       # 服务入口
 │   │   ├── db.rs         # 数据库层
@@ -30,36 +30,79 @@
 │   │   └── websocket.rs  # 实时推送
 │   └── Cargo.toml
 │
+├── backend-node/      # Node.js Express 后端 (开发环境)
+│   ├── server.js         # 服务入口
+│   ├── cars-data.js      # 示例数据
+│   ├── recommend.js      # 推荐算法
+│   └── package.json
+│
 ├── shared/            # 前后端共享类型
 │   ├── src/types.rs
 │   └── Cargo.toml
 │
 ├── migrations/        # 数据库迁移
-│   └── 001_create_tables.sql
+│   ├── 001_init_schema.sql
+│   └── 002_seed_data.sql
 │
+├── crawler/           # 爬虫模块
+│   ├── carprice_crawler/  # Scrapy 爬虫
+│   └── requirements.txt
+│
+├── docker-compose.yml # Docker 编排配置
 └── Cargo.toml         # Workspace 配置
 ```
 
 ## 🚀 快速开始
 
-### 前置要求
+### 方式一: Docker 部署 (推荐)
 
-- **Rust**: 安装 Rust 工具链
-  ```bash
-  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-  ```
+最简单的部署方式,一键启动完整应用:
 
-- **Node.js**: >= 18.x
-  ```bash
-  # Windows: 从 https://nodejs.org 下载安装
-  ```
+```bash
+# 1. 克隆项目
+git clone https://github.com/Tshameless/CarPriceHub.git
+cd CarPriceHub
 
-- **PostgreSQL**: >= 14.x
-  ```bash
-  # Windows: 从 https://www.postgresql.org/download/ 下载安装
-  ```
+# 2. 配置环境变量
+cp .env.example .env
+# 编辑 .env 文件,修改 DB_PASSWORD 和 JWT_SECRET
 
-### 后端启动
+# 3. 启动所有服务
+docker-compose up -d
+
+# 4. 访问应用
+# 前端: http://localhost
+# 后端: http://localhost/api
+```
+
+详细说明请查看 [Docker 部署指南](./DOCKER.md)
+
+### 方式二: 本地开发环境
+
+#### 前置要求
+
+- **Node.js**: >= 18.x (开发环境必需)
+- **Rust**: 最新稳定版 (生产环境可选)
+- **PostgreSQL**: >= 14.x (可选,有示例数据)
+- **Docker**: >= 20.10 (可选)
+
+#### 使用 Node.js 后端 (开发环境推荐)
+
+```bash
+# 1. 启动后端
+cd backend-node
+npm install
+npm start
+# 后端运行在 http://localhost:8080
+
+# 2. 启动前端 (新终端)
+cd frontend
+npm install
+npm run dev
+# 前端运行在 http://localhost:5173
+```
+
+#### 使用 Rust 后端 (生产环境)
 
 ```bash
 # 1. 创建数据库
@@ -72,30 +115,21 @@ cd backend
 cp .env.example .env
 # 编辑 .env 填入实际配置
 
-# 3. 安装 sqlx-cli (首次)
-cargo install sqlx-cli
+# 3. 运行数据库迁移
+psql -U postgres -d carpricehub -f ../migrations/001_init_schema.sql
+psql -U postgres -d carpricehub -f ../migrations/002_seed_data.sql
 
-# 4. 运行数据库迁移
-sqlx migrate run
-
-# 5. 启动后端服务
-cargo run
+# 4. 启动后端服务
+cargo run --release
+# 后端运行在 http://localhost:8080
 ```
 
-后端服务将在 `http://localhost:8080` 启动
+### 方式三: 生产环境部署
 
-### 前端启动
-
-```bash
-# 1. 安装依赖
-cd frontend
-npm install
-
-# 2. 启动开发服务器
-npm run dev
-```
-
-前端服务将在 `http://localhost:5173` 启动
+详细的生产环境部署指南,请查看:
+- [部署方案对比](./部署方案对比.md) - Node.js vs Rust 性能对比
+- [生产环境部署指南](./DEPLOYMENT.md) - 完整部署流程
+- [Docker 部署指南](./DOCKER.md) - Docker 详细说明
 
 ### 构建 Tauri 应用
 
@@ -174,20 +208,52 @@ npm run lint
 npm run format
 ```
 
-## 📦 生产部署
+## 📦 部署说明
 
-### Docker 部署（推荐）
+### 部署方案选择
+
+| 方案 | 适用场景 | 性能 | 难度 |
+|------|---------|------|------|
+| **Docker** | 生产环境、快速部署 | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
+| **Node.js** | 开发测试、中小规模应用 | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
+| **Rust** | 生产环境、高并发场景 | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ |
+
+**推荐方案**: 
+- 初期 (日活 < 1万): Node.js 或 Docker
+- 增长期 (日活 > 1万): 迁移到 Rust
+
+详细对比请查看 [部署方案对比](./部署方案对比.md)
+
+### 快速部署
+
+#### Docker 部署 (推荐)
 
 ```bash
-# 构建镜像
-docker build -t carpricehub-backend ./backend
+# 配置环境变量
+cp .env.example .env
 
-# 运行容器
-docker run -d \
-  -p 8080:8080 \
-  -e DATABASE_URL=postgresql://... \
-  carpricehub-backend
+# 启动服务
+docker-compose up -d
+
+# 查看状态
+docker-compose ps
 ```
+
+#### 传统部署
+
+```bash
+# Node.js 后端
+cd backend-node
+npm install --production
+pm2 start ecosystem.config.js
+
+# 前端构建
+cd frontend
+npm run build
+# 将 dist/ 目录部署到 Nginx
+```
+
+详细步骤请查看 [生产环境部署指南](./DEPLOYMENT.md)
 
 ### 环境变量配置
 
@@ -197,7 +263,8 @@ docker run -d \
 | REDIS_URL | Redis 连接串（可选） | - |
 | SERVER_HOST | 服务监听地址 | 127.0.0.1 |
 | SERVER_PORT | 服务监听端口 | 8080 |
-| FRONTEND_URL | 前端地址（CORS） | http://localhost:5173 |
+| JWT_SECRET | JWT 签名密钥 | - |
+| NODE_ENV | 运行环境 | development |
 
 ## 🤝 贡献指南
 
@@ -215,5 +282,15 @@ MIT License
 
 - [Tauri](https://tauri.app/) - 跨平台应用框架
 - [Axum](https://github.com/tokio-rs/axum) - Rust Web 框架
+- [Express](https://expressjs.com/) - Node.js Web 框架
 - [React](https://react.dev/) - 前端框架
 - [Ant Design](https://ant.design/) - UI 组件库
+- [Scrapy](https://scrapy.org/) - Python 爬虫框架
+
+## 📚 文档
+
+- [项目概览](./PROJECT_SUMMARY.md) - 项目整体介绍
+- [部署方案对比](./部署方案对比.md) - Node.js vs Rust 详细对比
+- [生产环境部署指南](./DEPLOYMENT.md) - 完整部署流程
+- [Docker 部署指南](./DOCKER.md) - Docker 详细说明
+- [项目完成报告](./项目完成报告.md) - 技术实现细节

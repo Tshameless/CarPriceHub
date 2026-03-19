@@ -19,6 +19,8 @@ mod db;
 mod handlers;
 mod recommend;
 mod websocket;
+mod auth;
+mod auth_middleware;
 
 use db::Database;
 
@@ -42,7 +44,7 @@ async fn main() -> Result<()> {
     info!("Connected to PostgreSQL");
 
     // Run migrations
-    sqlx::migrate!("./migrations").run(&pool).await?;
+    sqlx::migrate!("../migrations").run(&pool).await?;
     info!("Migrations completed");
 
     let db = Database::new(pool);
