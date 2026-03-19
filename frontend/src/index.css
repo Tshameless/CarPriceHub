@@ -1,0 +1,102 @@
+/* ── Global Styles ────────────────────────────────────────────── */
+:root {
+  --color-primary: #1565C0;
+  --color-secondary: #E65100;
+  --color-success: #2E7D32;
+  --color-warning: #F9A825;
+  --color-error: #C62828;
+  --color-bg-light: #F5F5F5;
+  --color-text: #212121;
+  --color-text-secondary: #455A64;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'HarmonyOS Sans CN', 'PingFang SC', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background: var(--color-bg-light);
+  color: var(--color-text);
+}
+
+#root {
+  min-height: 100vh;
+}
+
+/* Ant Design Custom Overrides */
+.ant-layout {
+  background: #fff;
+}
+
+.ant-layout-header {
+  background: var(--color-primary);
+  padding: 0 24px;
+}
+
+.ant-layout-content {
+  padding: 24px;
+}
+
+.ant-layout-footer {
+  text-align: center;
+  background: #fafafa;
+}
+
+/* Price Colors */
+.price-discount {
+  color: var(--color-success);
+  font-weight: 600;
+}
+
+.price-official {
+  color: var(--color-text-secondary);
+  text-decoration: line-through;
+  font-size: 0.9em;
+}
+
+.price-change-up {
+  color: var(--color-error);
+}
+
+.price-change-down {
+  color: var(--color-success);
+}
+
+/* Card Hover Effect */
+.car-card {
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.car-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+/* Loading Skeleton */
+.skeleton {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: loading 1.5s infinite;
+}
+
+@keyframes loading {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .ant-layout-content {
+    padding: 16px;
+  }
+
+  .ant-col {
+    margin-bottom: 16px;
+  }
+}
