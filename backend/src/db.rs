@@ -161,3 +161,266 @@ fn parse_body_type(s: &str) -> BodyType {
         _ => BodyType::Sedan,
     }
 }
+
+// ── 用户收藏相关方法 ─────────────────────────────────────────────
+
+impl Database {
+    /// 获取用户收藏列表
+    pub async fn get_user_favorites(
+        &self,
+        user_id: Uuid,
+    ) -> Result<Vec<serde_json::Value>, sqlx::Error> {
+        let rows = sqlx::query(
+            r#"
+            SELECT f.id, f.car_id, c.brand, c.model_name, c.price_discount, f.created_at
+            FROM favorites f
+            JOIN cars c ON f.car_id = c.id
+            WHERE f.user_id = $1
+            ORDER BY f.created_at DESC
+            "#
+        )
+        .bind(user_id)
+        .fetch_all(&self.pool)
+        .await?;
+
+        let favorites: Vec<serde_json::Value> = rows
+            .into_iter()
+            .map(|row| {
+                serde_json::json!({
+                    "id": row.get::<Uuid, _>("id").to_string(),
+                    "car_id": row.get::<Uuid, _>("car_id").to_string(),
+                    "brand": row.get::<String, _>("brand"),
+                    "model_name": row.get::<String, _>("model_name"),
+                    "price_discount": row.get::<f64, _>("price_discount"),
+                    "created_at": row.get::<chrono::DateTime<chrono::Utc>, _>("created_at").to_rfc3339(),
+                })
+            })
+            .collect();
+
+        Ok(favorites)
+    }
+
+    /// 添加收藏
+    pub async fn add_favorite(
+        &self,
+        user_id: Uuid,
+        car_id: Uuid,
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query(
+            "INSERT INTO favorites (user_id, car_id) VALUES ($1, $2)"
+        )
+        .bind(user_id)
+        .bind(car_id)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    /// 取消收藏
+    pub async fn remove_favorite(
+        &self,
+        user_id: Uuid,
+        car_id: Uuid,
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query(
+            "DELETE FROM favorites WHERE user_id = $1 AND car_id = $2"
+        )
+        .bind(user_id)
+        .bind(car_id)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    /// 检查是否已收藏
+    pub async fn check_favorite(
+        &self,
+        user_id: Uuid,
+        car_id: Uuid,
+    ) -> Result<bool, sqlx::Error> {
+        let count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM favorites WHERE user_id = $1 AND car_id = $2"
+        )
+        .bind(user_id)
+        .bind(car_id)
+        .fetch_one(&self.pool)
+        .await?;
+        Ok(count > 0)
+    }
+
+    // ── 价格提醒相关方法 ─────────────────────────────────────────────
+
+    /// 获取用户价格提醒列表
+    pub async fn get_user_alerts(
+        &self,
+        user_id: Uuid,
+    ) -> Result<Vec<serde_json::Value>, sqlx::Error> {
+        let rows = sqlx::query(
+            r#"
+            SELECT pa.id, pa.car_id, c.brand || ' ' || c.model_name as car_name,
+                   pa.target_price, pa.status, pa.created_at
+            FROM price_alerts pa
+            JOIN cars c ON pa.car_id = c.id
+            WHERE pa.user_id = $1
+            ORDER BY pa.created_at DESC
+            "#
+        )
+        .bind(user_id)
+        .fetch_all(&self.pool)
+        .await?;
+
+        let alerts: Vec<serde_json::Value> = rows
+            .into_iter()
+            .map(|row| {
+                serde_json::json!({
+                    "id": row.get::<Uuid, _>("id").to_string(),
+                    "car_id": row.get::<Uuid, _>("car_id").to_string(),
+                    "carName": row.get::<String, _>("car_name"),
+                    "targetPrice": row.get::<f64, _>("target_price"),
+                    "status": row.get::<String, _>("status"),
+                    "created_at": row.get::<chrono::DateTime<chrono::Utc>, _>("created_at").to_rfc3339(),
+                })
+            })
+            .collect();
+
+        Ok(alerts)
+    }
+
+    /// 创建价格提醒
+    pub async fn create_price_alert(
+        &self,
+        user_id: Uuid,
+        car_id: Uuid,
+        target_price: f32,
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query(
+            "INSERT INTO price_alerts (user_id, car_id, target_price) VALUES ($1, $2, $3)"
+        )
+        .bind(user_id)
+        .bind(car_id)
+        .bind(target_price)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    /// 删除价格提醒
+    pub async fn delete_price_alert(
+        &self,
+        user_id: Uuid,
+        alert_id: Uuid,
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query(
+            "DELETE FROM price_alerts WHERE id = $1 AND user_id = $2"
+        )
+        .bind(alert_id)
+        .bind(user_id)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    /// 取消价格提醒
+    pub async fn cancel_price_alert(
+        &self,
+        user_id: Uuid,
+        alert_id: Uuid,
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query(
+            "UPDATE price_alerts SET status = 'cancelled' WHERE id = $1 AND user_id = $2"
+        )
+        .bind(alert_id)
+        .bind(user_id)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    // ── 查询历史相关方法 ─────────────────────────────────────────────
+
+    /// 获取用户查询历史
+    pub async fn get_search_history(
+        &self,
+        user_id: Uuid,
+    ) -> Result<Vec<serde_json::Value>, sqlx::Error> {
+        let rows = sqlx::query(
+            r#"
+            SELECT id, keyword, filters, result_count, created_at as timestamp
+            FROM search_history
+            WHERE user_id = $1
+            ORDER BY created_at DESC
+            LIMIT 50
+            "#
+        )
+        .bind(user_id)
+        .fetch_all(&self.pool)
+        .await?;
+
+        let history: Vec<serde_json::Value> = rows
+            .into_iter()
+            .map(|row| {
+                let keyword: Option<String> = row.get("keyword");
+                let filters: Option<serde_json::Value> = row.get("filters");
+                serde_json::json!({
+                    "id": row.get::<Uuid, _>("id").to_string(),
+                    "keyword": keyword,
+                    "filters": filters,
+                    "result_count": row.get::<i32, _>("result_count"),
+                    "timestamp": row.get::<chrono::DateTime<chrono::Utc>, _>("timestamp").to_rfc3339(),
+                })
+            })
+            .collect();
+
+        Ok(history)
+    }
+
+    /// 添加查询历史
+    pub async fn add_search_history(
+        &self,
+        user_id: Uuid,
+        keyword: Option<&str>,
+        filters: Option<serde_json::Value>,
+        result_count: i32,
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query(
+            "INSERT INTO search_history (user_id, keyword, filters, result_count) VALUES ($1, $2, $3, $4)"
+        )
+        .bind(user_id)
+        .bind(keyword)
+        .bind(filters)
+        .bind(result_count)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    /// 删除单条历史
+    pub async fn delete_search_history(
+        &self,
+        user_id: Uuid,
+        history_id: Uuid,
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query(
+            "DELETE FROM search_history WHERE id = $1 AND user_id = $2"
+        )
+        .bind(history_id)
+        .bind(user_id)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    /// 清空所有历史
+    pub async fn clear_search_history(
+        &self,
+        user_id: Uuid,
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query(
+            "DELETE FROM search_history WHERE user_id = $1"
+        )
+        .bind(user_id)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+}

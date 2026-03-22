@@ -162,3 +162,202 @@ pub async fn recommend(
         processing_time_ms,
     }))
 }
+
+// ── 用户收藏相关处理器 ─────────────────────────────────────────────
+
+/// 获取用户收藏列表
+pub async fn get_favorites(
+    State(db): State<Database>,
+    Extension(auth_user): Extension<AuthUser>,
+) -> Result<Json<Vec<serde_json::Value>>, (StatusCode, String)> {
+    let favorites = db.get_user_favorites(auth_user.claims.sub)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    
+    Ok(Json(favorites))
+}
+
+/// 添加收藏
+pub async fn add_favorite(
+    State(db): State<Database>,
+    Extension(auth_user): Extension<AuthUser>,
+    Json(req): Json<serde_json::Value>,
+) -> Result<StatusCode, (StatusCode, String)> {
+    let car_id = req["car_id"].as_str()
+        .ok_or((StatusCode::BAD_REQUEST, "car_id is required".to_string()))?;
+    
+    let car_uuid = Uuid::parse_str(car_id)
+        .map_err(|_| (StatusCode::BAD_REQUEST, "Invalid car_id".to_string()))?;
+    
+    db.add_favorite(auth_user.claims.sub, car_uuid)
+        .await
+        .map_err(|e| {
+            if e.to_string().contains("already exists") {
+                (StatusCode::CONFLICT, "Already in favorites".to_string())
+            } else {
+                (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
+            }
+        })?;
+    
+    Ok(StatusCode::CREATED)
+}
+
+/// 取消收藏
+pub async fn remove_favorite(
+    State(db): State<Database>,
+    Extension(auth_user): Extension<AuthUser>,
+    Path(car_id): Path<String>,
+) -> Result<StatusCode, (StatusCode, String)> {
+    let car_uuid = Uuid::parse_str(&car_id)
+        .map_err(|_| (StatusCode::BAD_REQUEST, "Invalid car_id".to_string()))?;
+    
+    db.remove_favorite(auth_user.claims.sub, car_uuid)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// 检查是否已收藏
+pub async fn check_favorite(
+    State(db): State<Database>,
+    Extension(auth_user): Extension<AuthUser>,
+    Path(car_id): Path<String>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let car_uuid = Uuid::parse_str(&car_id)
+        .map_err(|_| (StatusCode::BAD_REQUEST, "Invalid car_id".to_string()))?;
+    
+    let is_favorite = db.check_favorite(auth_user.claims.sub, car_uuid)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    
+    Ok(Json(serde_json::json!({
+        "is_favorite": is_favorite
+    })))
+}
+
+// ── 价格提醒相关处理器 ─────────────────────────────────────────────
+
+/// 获取用户价格提醒列表
+pub async fn get_alerts(
+    State(db): State<Database>,
+    Extension(auth_user): Extension<AuthUser>,
+) -> Result<Json<Vec<serde_json::Value>>, (StatusCode, String)> {
+    let alerts = db.get_user_alerts(auth_user.claims.sub)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    
+    Ok(Json(alerts))
+}
+
+/// 创建价格提醒
+pub async fn create_alert(
+    State(db): State<Database>,
+    Extension(auth_user): Extension<AuthUser>,
+    Json(req): Json<serde_json::Value>,
+) -> Result<StatusCode, (StatusCode, String)> {
+    let car_id = req["car_id"].as_str()
+        .ok_or((StatusCode::BAD_REQUEST, "car_id is required".to_string()))?;
+    let target_price = req["target_price"].as_f64()
+        .ok_or((StatusCode::BAD_REQUEST, "target_price is required".to_string()))?;
+    
+    let car_uuid = Uuid::parse_str(car_id)
+        .map_err(|_| (StatusCode::BAD_REQUEST, "Invalid car_id".to_string()))?;
+    
+    db.create_price_alert(auth_user.claims.sub, car_uuid, target_price as f32)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    
+    Ok(StatusCode::CREATED)
+}
+
+/// 删除价格提醒
+pub async fn remove_alert(
+    State(db): State<Database>,
+    Extension(auth_user): Extension<AuthUser>,
+    Path(alert_id): Path<String>,
+) -> Result<StatusCode, (StatusCode, String)> {
+    let alert_uuid = Uuid::parse_str(&alert_id)
+        .map_err(|_| (StatusCode::BAD_REQUEST, "Invalid alert_id".to_string()))?;
+    
+    db.delete_price_alert(auth_user.claims.sub, alert_uuid)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// 取消价格提醒
+pub async fn cancel_alert(
+    State(db): State<Database>,
+    Extension(auth_user): Extension<AuthUser>,
+    Path(alert_id): Path<String>,
+) -> Result<StatusCode, (StatusCode, String)> {
+    let alert_uuid = Uuid::parse_str(&alert_id)
+        .map_err(|_| (StatusCode::BAD_REQUEST, "Invalid alert_id".to_string()))?;
+    
+    db.cancel_price_alert(auth_user.claims.sub, alert_uuid)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    
+    Ok(StatusCode::OK)
+}
+
+// ── 查询历史相关处理器 ─────────────────────────────────────────────
+
+/// 获取用户查询历史
+pub async fn get_history(
+    State(db): State<Database>,
+    Extension(auth_user): Extension<AuthUser>,
+) -> Result<Json<Vec<serde_json::Value>>, (StatusCode, String)> {
+    let history = db.get_search_history(auth_user.claims.sub)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    
+    Ok(Json(history))
+}
+
+/// 添加查询历史
+pub async fn add_history(
+    State(db): State<Database>,
+    Extension(auth_user): Extension<AuthUser>,
+    Json(req): Json<serde_json::Value>,
+) -> Result<StatusCode, (StatusCode, String)> {
+    let keyword = req["keyword"].as_str();
+    let filters = req["filters"].clone();
+    let result_count = req["result_count"].as_i64().unwrap_or(0) as i32;
+    
+    db.add_search_history(auth_user.claims.sub, keyword, filters, result_count)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    
+    Ok(StatusCode::CREATED)
+}
+
+/// 删除单条历史
+pub async fn remove_history(
+    State(db): State<Database>,
+    Extension(auth_user): Extension<AuthUser>,
+    Path(history_id): Path<String>,
+) -> Result<StatusCode, (StatusCode, String)> {
+    let history_uuid = Uuid::parse_str(&history_id)
+        .map_err(|_| (StatusCode::BAD_REQUEST, "Invalid history_id".to_string()))?;
+    
+    db.delete_search_history(auth_user.claims.sub, history_uuid)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// 清空所有历史
+pub async fn clear_history(
+    State(db): State<Database>,
+    Extension(auth_user): Extension<AuthUser>,
+) -> Result<StatusCode, (StatusCode, String)> {
+    db.clear_search_history(auth_user.claims.sub)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    
+    Ok(StatusCode::NO_CONTENT)
+}

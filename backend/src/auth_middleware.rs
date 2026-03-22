@@ -3,7 +3,7 @@
 //! 提供 Axum 中间件用于验证 JWT Token
 
 use axum::{
-    extract::Request,
+    extract::{Request, State, Extension},
     http::StatusCode,
     middleware::Next,
     response::{IntoResponse, Response},
@@ -11,6 +11,7 @@ use axum::{
 use std::sync::Arc;
 
 use crate::auth::{Claims, JwtConfig};
+use crate::db::Database;
 
 /// 认证错误
 #[derive(Debug)]
@@ -40,9 +41,9 @@ pub struct AuthUser {
     pub claims: Claims,
 }
 
-/// 认证中间件
-pub async fn auth_middleware(
-    jwt_config: Arc<JwtConfig>,
+/// 从请求中提取认证用户
+pub async fn extract_auth_user(
+    Extension(jwt_config): Extension<Arc<JwtConfig>>,
     request: Request,
     next: Next,
 ) -> Result<Response, AuthError> {
@@ -68,58 +69,19 @@ pub async fn auth_middleware(
     
     // 将用户信息添加到请求扩展中
     let auth_user = AuthUser { claims };
-    let request = request.extensions().mutate(|ext| {
-        ext.insert(auth_user);
-    });
+    
+    let mut request = request;
+    request.extensions_mut().insert(auth_user);
     
     Ok(next.run(request).await)
 }
 
-/// 可选认证中间件（不强制要求认证）
-pub async fn optional_auth_middleware(
-    jwt_config: Arc<JwtConfig>,
-    request: Request,
-    next: Next,
-) -> Response {
-    // 尝试从请求头获取 token
-    let auth_header = request
-        .headers()
-        .get("Authorization")
-        .and_then(|h| h.to_str().ok());
-    
-    if let Some(token) = auth_header.and_then(|h| {
-        if h.starts_with("Bearer ") {
-            Some(&h[7..])
-        } else {
-            None
-        }
-    }) {
-        // 尝试验证 token
-        if let Ok(claims) = crate::auth::verify_jwt(token, &jwt_config) {
-            let auth_user = AuthUser { claims };
-            let request = request.extensions().mutate(|ext| {
-                ext.insert(auth_user);
-            });
-            return next.run(request).await;
-        }
-    }
-    
-    // 没有 token 或验证失败，继续处理请求（不添加用户信息）
-    next.run(request).await
-}
-
-/// 管理员权限检查中间件
-pub async fn admin_only_middleware(request: Request, next: Next) -> Result<Response, StatusCode> {
-    let auth_user = request
-        .extensions()
-        .get::<AuthUser>()
-        .ok_or(StatusCode::UNAUTHORIZED)?;
-    
+/// 管理员权限检查
+pub fn require_admin(auth_user: &AuthUser) -> Result<(), StatusCode> {
     if auth_user.claims.role != "admin" {
         return Err(StatusCode::FORBIDDEN);
     }
-    
-    Ok(next.run(request).await)
+    Ok(())
 }
 
 #[cfg(test)]

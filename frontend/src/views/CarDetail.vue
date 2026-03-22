@@ -12,8 +12,15 @@
               <el-icon :size="100" color="#409EFF"><Van /></el-icon>
             </div>
             <div class="car-actions">
-              <el-button type="primary" :icon="Star">收藏</el-button>
-              <el-button :icon="Share">分享</el-button>
+              <el-button
+                type="primary"
+                :icon="Star"
+                :loading="favoriteLoading"
+                @click="toggleFavorite"
+              >
+                {{ isFavorite ? '已收藏' : '收藏' }}
+              </el-button>
+              <el-button :icon="Share" @click="handleShare">分享</el-button>
             </div>
           </template>
         </el-card>
@@ -170,6 +177,7 @@
                   :icon="Bell"
                   @click="handleCreateAlert"
                   :disabled="!alertPrice"
+                  :loading="alertLoading"
                 >
                   创建提醒
                 </el-button>
@@ -205,24 +213,30 @@ import {
   TrendCharts,
   Bell,
 } from '@element-plus/icons-vue';
-import { useCarStore, usePriceStore } from '@/stores';
+import { useCarStore, usePriceStore, useAuthStore } from '@/stores';
 import PriceTrendChart from '@/components/charts/PriceTrendChart.vue';
 import type { Car } from '@/types';
 import { ElMessage } from 'element-plus';
+import { favoriteApi, priceAlertApi } from '@/api';
 
 const route = useRoute();
 const router = useRouter();
 const carStore = useCarStore();
 const priceStore = usePriceStore();
+const authStore = useAuthStore();
 
 const car = ref<Car | null>(null);
 const activeTab = ref('trend');
 const trendDays = ref(30);
 const alertPrice = ref<number | null>(null);
+const isFavorite = ref(false);
+const favoriteLoading = ref(false);
+const alertLoading = ref(false);
 
 const loading = computed(() => carStore.loading);
 const priceLoading = computed(() => priceStore.loading);
 const priceTrend = computed(() => priceStore.priceTrend);
+const isAuthenticated = computed(() => authStore.isAuthenticated);
 
 const getEnergyLabel = (type?: string) => {
   if (!type) return '-';
@@ -250,18 +264,92 @@ const fetchPriceTrend = () => {
 };
 
 const handleCreateAlert = async () => {
+  if (!isAuthenticated.value) {
+    ElMessage.warning('请先登录');
+    router.push('/login');
+    return;
+  }
+
   const carId = route.params.id as string;
   if (!carId || !alertPrice.value) {
     ElMessage.warning('请输入目标价格');
     return;
   }
 
+  alertLoading.value = true;
   try {
-    await priceStore.createPriceAlert(carId, alertPrice.value, 'push');
+    await priceAlertApi.createAlert(carId, alertPrice.value);
     ElMessage.success('价格提醒已创建');
     alertPrice.value = null;
+  } catch (error: any) {
+    ElMessage.error(error.message || '创建提醒失败');
+  } finally {
+    alertLoading.value = false;
+  }
+};
+
+// 检查收藏状态
+const checkFavoriteStatus = async () => {
+  if (!isAuthenticated.value) return;
+  
+  const carId = route.params.id as string;
+  try {
+    isFavorite.value = await favoriteApi.checkFavorite(carId);
   } catch (error) {
-    ElMessage.error('创建提醒失败');
+    console.error('检查收藏状态失败:', error);
+  }
+};
+
+// 切换收藏状态
+const toggleFavorite = async () => {
+  if (!isAuthenticated.value) {
+    ElMessage.warning('请先登录');
+    router.push('/login');
+    return;
+  }
+
+  const carId = route.params.id as string;
+  favoriteLoading.value = true;
+  
+  try {
+    if (isFavorite.value) {
+      await favoriteApi.removeFavorite(carId);
+      ElMessage.success('已取消收藏');
+      isFavorite.value = false;
+    } else {
+      await favoriteApi.addFavorite(carId);
+      ElMessage.success('已添加到收藏');
+      isFavorite.value = true;
+    }
+  } catch (error: any) {
+    ElMessage.error(error.message || '操作失败');
+  } finally {
+    favoriteLoading.value = false;
+  }
+};
+
+// 分享功能
+const handleShare = async () => {
+  const shareData = {
+    title: `${car.value?.brand} ${car.value?.model_name} - 车价通`,
+    text: `查看${car.value?.brand} ${car.value?.model_name}的最新价格和优惠信息`,
+    url: window.location.href,
+  };
+
+  if (navigator.share) {
+    try {
+      await navigator.share(shareData);
+    } catch (error) {
+      console.error('分享失败:', error);
+    }
+  } else {
+    // 复制链接到剪贴板
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      ElMessage.success('链接已复制到剪贴板');
+    } catch (error) {
+      ElMessage.error('复制失败，请手动复制链接');
+    }
   }
 };
 
@@ -272,6 +360,7 @@ onMounted(async () => {
     if (fetchedCar) {
       car.value = fetchedCar;
       fetchPriceTrend();
+      await checkFavoriteStatus();
     }
   }
 });

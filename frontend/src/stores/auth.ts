@@ -101,8 +101,8 @@ export const useAuthStore = defineStore('auth', () => {
   const fetchCurrentUser = async () => {
     const savedToken = localStorage.getItem('auth-token');
     if (!savedToken) {
-      isAuthenticated.value = false;
       user.value = null;
+      token.value = null;
       return;
     }
 

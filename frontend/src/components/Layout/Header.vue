@@ -56,6 +56,33 @@
         </template>
       </el-input>
 
+      <!-- User Actions (Desktop) -->
+      <div v-if="!isMobile" class="user-actions">
+        <template v-if="isAuthenticated">
+          <el-dropdown>
+            <span class="user-info">
+              <el-avatar :size="32" :icon="UserFilled" />
+              <span class="username">{{ user?.username || '用户' }}</span>
+              <el-icon><ArrowDown /></el-icon>
+            </span>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item @click="router.push('/profile')">
+                  <el-icon><UserFilled /></el-icon>个人中心
+                </el-dropdown-item>
+                <el-dropdown-item divided @click="handleLogout">
+                  <el-icon><SwitchButton /></el-icon>退出登录
+                </el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+        </template>
+        <template v-else>
+          <el-button type="primary" @click="router.push('/login')">登录</el-button>
+          <el-button @click="router.push('/register')">注册</el-button>
+        </template>
+      </div>
+
       <!-- Mobile Menu Button -->
       <el-button
         v-if="isMobile"
@@ -113,13 +140,38 @@
           <el-button @click="handleMobileSearch">搜索</el-button>
         </template>
       </el-input>
+
+      <!-- Mobile User Actions -->
+      <div class="mobile-user-actions">
+        <template v-if="isAuthenticated">
+          <div class="mobile-user-info">
+            <el-avatar :size="48" :icon="UserFilled" />
+            <span class="mobile-username">{{ user?.username || '用户' }}</span>
+          </div>
+          <el-button type="primary" @click="router.push('/profile'); showMobileMenu = false;">
+            个人中心
+          </el-button>
+          <el-button @click="handleLogout">
+            退出登录
+          </el-button>
+        </template>
+        <template v-else>
+          <el-button type="primary" @click="router.push('/login'); showMobileMenu = false;">
+            登录
+          </el-button>
+          <el-button @click="router.push('/register'); showMobileMenu = false;">
+            注册
+          </el-button>
+        </template>
+      </div>
     </el-drawer>
   </el-header>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onUnmounted } from 'vue';
+import { ref, computed, onUnmounted, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
+import { ElMessage } from 'element-plus';
 import {
   HomeFilled,
   Search,
@@ -128,16 +180,33 @@ import {
   UserFilled,
   Menu,
   Van,
+  ArrowDown,
+  SwitchButton,
 } from '@element-plus/icons-vue';
+import { useAuthStore } from '@/stores';
 
 const router = useRouter();
 const route = useRoute();
+const authStore = useAuthStore();
 
 const searchKeyword = ref('');
 const showMobileMenu = ref(false);
 const isMobile = ref(window.innerWidth < 768);
 
 const currentRoute = computed(() => route.path);
+const isAuthenticated = computed(() => authStore.isAuthenticated);
+const user = computed(() => authStore.user);
+
+const handleLogout = () => {
+  authStore.logout();
+  ElMessage.success('已退出登录');
+  router.push('/');
+};
+
+onMounted(() => {
+  // 尝试获取当前用户信息
+  authStore.fetchCurrentUser();
+});
 
 const handleSearch = () => {
   if (searchKeyword.value.trim()) {
@@ -208,6 +277,52 @@ onUnmounted(() => {
 
 .mobile-search {
   margin-top: 16px;
+}
+
+.user-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #fff;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: background-color 0.3s;
+}
+
+.user-info:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.username {
+  font-size: 14px;
+}
+
+.mobile-user-actions {
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid #e4e7ed;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.mobile-user-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.mobile-username {
+  font-size: 16px;
+  font-weight: 500;
 }
 
 @media (max-width: 768px) {

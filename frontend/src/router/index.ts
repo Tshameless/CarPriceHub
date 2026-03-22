@@ -3,6 +3,7 @@
  */
 import { createRouter, createWebHistory } from 'vue-router';
 import type { RouteRecordRaw } from 'vue-router';
+import { useAuthStore } from '@/stores';
 
 const routes: RouteRecordRaw[] = [
   {
@@ -39,7 +40,19 @@ const routes: RouteRecordRaw[] = [
     path: '/profile',
     name: 'Profile',
     component: () => import('@/views/Profile.vue'),
-    meta: { title: '个人中心' },
+    meta: { title: '个人中心', requiresAuth: true },
+  },
+  {
+    path: '/login',
+    name: 'Login',
+    component: () => import('@/views/Login.vue'),
+    meta: { title: '登录', guestOnly: true },
+  },
+  {
+    path: '/register',
+    name: 'Register',
+    component: () => import('@/views/Register.vue'),
+    meta: { title: '注册', guestOnly: true },
   },
 ];
 
@@ -55,12 +68,31 @@ const router = createRouter({
   },
 });
 
-// 路由守卫 - 设置页面标题
+// 路由守卫 - 设置页面标题和权限验证
 router.beforeEach((to, from, next) => {
   const title = to.meta.title as string;
   if (title) {
     document.title = `${title} - 车价通 CarPriceHub`;
   }
+
+  const authStore = useAuthStore();
+  const isAuthenticated = authStore.isAuthenticated;
+
+  // 需要登录的页面
+  if (to.meta.requiresAuth && !isAuthenticated) {
+    next({
+      path: '/login',
+      query: { redirect: to.fullPath },
+    });
+    return;
+  }
+
+  // 仅限游客访问的页面（登录、注册）
+  if (to.meta.guestOnly && isAuthenticated) {
+    next('/');
+    return;
+  }
+
   next();
 });
 
