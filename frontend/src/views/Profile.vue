@@ -1,160 +1,187 @@
 <template>
   <div class="profile-page">
-    <el-card class="profile-card">
-      <template #header>
-        <div class="profile-header">
-          <div class="user-info">
-            <el-avatar :size="64" :icon="UserFilled" />
-            <div class="user-details">
-              <h2>{{ authStore.user?.username || '用户' }}</h2>
-              <p>{{ authStore.user?.email || '' }}</p>
-            </div>
+    <div class="container">
+      <!-- Header -->
+      <div class="page-header">
+        <nav class="breadcrumb">
+          <router-link to="/" class="breadcrumb-link">首页</router-link>
+          <el-icon class="breadcrumb-separator"><ArrowRight /></el-icon>
+          <span class="breadcrumb-current">个人中心</span>
+        </nav>
+        <h1 class="page-title">个人中心</h1>
+      </div>
+
+      <!-- User Card -->
+      <div class="user-card">
+        <div class="user-avatar">
+          <div class="avatar-fallback">
+            {{ user?.username?.charAt(0).toUpperCase() }}
           </div>
         </div>
-      </template>
+        <div class="user-info">
+          <h2 class="user-name">{{ user?.username }}</h2>
+          <p class="user-email">{{ user?.email }}</p>
+        </div>
+        <button class="logout-btn" @click="handleLogout">
+          <el-icon><SwitchButton /></el-icon>
+          退出登录
+        </button>
+      </div>
 
-      <el-tabs v-model="activeTab" class="profile-tabs">
-        <el-tab-pane name="favorites">
-          <template #label>
-            <el-icon><Star /></el-icon> 收藏车型
-            <el-tag v-if="favorites.length > 0" size="small" class="tab-badge">
-              {{ favorites.length }}
-            </el-tag>
-          </template>
-          <div class="tab-content">
-            <el-row v-if="favorites.length > 0" :gutter="16">
-              <el-col
-                :xs="24"
-                :sm="12"
-                :md="8"
+      <!-- Tabs -->
+      <div class="content-card">
+        <div class="tabs-header">
+          <button
+            class="tab-btn"
+            :class="{ active: activeTab === 'favorites' }"
+            @click="activeTab = 'favorites'"
+          >
+            <el-icon><Star /></el-icon>
+            我的收藏
+            <span v-if="favorites.length > 0" class="tab-badge">{{ favorites.length }}</span>
+          </button>
+          <button
+            class="tab-btn"
+            :class="{ active: activeTab === 'alerts' }"
+            @click="activeTab = 'alerts'"
+          >
+            <el-icon><Bell /></el-icon>
+            价格提醒
+            <span v-if="alerts.length > 0" class="tab-badge">{{ alerts.length }}</span>
+          </button>
+          <button
+            class="tab-btn"
+            :class="{ active: activeTab === 'history' }"
+            @click="activeTab = 'history'"
+          >
+            <el-icon><Clock /></el-icon>
+            查询历史
+          </button>
+        </div>
+
+        <div class="tabs-content">
+          <!-- Favorites Tab -->
+          <div v-if="activeTab === 'favorites'" class="tab-panel">
+            <div v-if="favorites.length > 0" class="items-grid">
+              <div
                 v-for="item in favorites"
                 :key="item.id"
                 class="favorite-item"
+                @click="viewCarDetail(item.car_id)"
               >
-                <el-card shadow="hover">
-                  <div class="favorite-car">
-                    <h4>{{ item.brand }} {{ item.model_name }}</h4>
-                    <p class="price">¥{{ item.price_discount }}万</p>
-                    <div class="actions">
-                      <el-button type="primary" link @click="viewCarDetail(item.car_id)">
-                        查看详情
-                      </el-button>
-                      <el-button type="danger" link @click="removeFavorite(item.car_id)">
-                        取消收藏
-                      </el-button>
-                    </div>
-                  </div>
-                </el-card>
-              </el-col>
-            </el-row>
-            <el-empty
-              v-else
-              description="暂无收藏车型"
-              class="empty-content"
-            >
-              <el-button type="primary" @click="router.push('/search')">
-                去搜索
-              </el-button>
-            </el-empty>
+                <div class="item-image">
+                  <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M5 10L3 16L5 16L7 10H5Z" fill="currentColor"/>
+                    <path d="M19 10L21 16H19L17 10H19Z" fill="currentColor"/>
+                    <path d="M7 10H17L16 7C15.5 6 14.5 5 12 5C9.5 5 8.5 6 8 7L7 10Z" fill="currentColor"/>
+                    <path d="M6 12H18L17 18C16.5 19 15.5 20 12 20C8.5 20 7.5 19 7 18L6 12Z" fill="currentColor"/>
+                  </svg>
+                </div>
+                <div class="item-content">
+                  <h4 class="item-title">{{ item.brand }} {{ item.model_name }}</h4>
+                  <p class="item-price">
+                    <span class="price-label">优惠价</span>
+                    <span class="price-value">¥{{ formatPrice(item.price_discount) }}万</span>
+                  </p>
+                </div>
+                <button
+                  class="remove-btn"
+                  @click.stop="removeFavorite(item.car_id)"
+                >
+                  <el-icon><Delete /></el-icon>
+                </button>
+              </div>
+            </div>
+            <div v-else class="empty-state">
+              <div class="empty-icon">
+                <el-icon :size="48"><Star /></el-icon>
+              </div>
+              <h3>暂无收藏车型</h3>
+              <p>收藏你感兴趣的车型，方便随时查看</p>
+              <router-link to="/search" class="empty-action">
+                去搜索车型
+              </router-link>
+            </div>
           </div>
-        </el-tab-pane>
 
-        <el-tab-pane name="alerts">
-          <template #label>
-            <el-icon><Bell /></el-icon> 价格提醒
-            <el-tag v-if="alerts.length > 0" size="small" class="tab-badge">
-              {{ alerts.length }}
-            </el-tag>
-          </template>
-          <div class="tab-content">
-            <el-row v-if="alerts.length > 0" :gutter="16">
-              <el-col
-                :xs="24"
-                :sm="12"
+          <!-- Alerts Tab -->
+          <div v-if="activeTab === 'alerts'" class="tab-panel">
+            <div v-if="alerts.length > 0" class="items-list">
+              <div
                 v-for="item in alerts"
                 :key="item.id"
                 class="alert-item"
               >
-                <el-card shadow="hover">
-                  <div class="alert-info">
-                    <div class="alert-header">
-                      <h4>{{ item.carName }}</h4>
-                      <el-tag :type="getAlertStatusType(item.status)">
-                        {{ getAlertStatusText(item.status) }}
-                      </el-tag>
-                    </div>
-                    <p class="target-price">目标价: ¥{{ item.targetPrice }}万</p>
-                    <p class="alert-date">创建时间: {{ formatDate(item.created_at) }}</p>
-                    <div class="actions">
-                      <el-button type="primary" link @click="viewCarDetail(item.car_id)">
-                        查看车型
-                      </el-button>
-                      <el-button
-                        v-if="item.status === 'active'"
-                        type="danger"
-                        link
-                        @click="removeAlert(item.id)"
-                      >
-                        删除提醒
-                      </el-button>
-                    </div>
-                  </div>
-                </el-card>
-              </el-col>
-            </el-row>
-            <el-empty
-              v-else
-              description="暂无价格提醒"
-              class="empty-content"
-            >
-              <el-button type="primary" @click="router.push('/search')">
+                <div class="alert-status" :class="item.status">
+                  <el-icon v-if="item.status === 'active'"><Bell /></el-icon>
+                  <el-icon v-else-if="item.status === 'triggered'"><CircleCheck /></el-icon>
+                  <el-icon v-else><CircleClose /></el-icon>
+                </div>
+                <div class="alert-content">
+                  <h4 class="alert-title">{{ item.carName }}</h4>
+                  <p class="alert-target">
+                    目标价: <strong>¥{{ item.targetPrice }}万</strong>
+                  </p>
+                  <p class="alert-date">创建于 {{ formatDate(item.created_at) }}</p>
+                </div>
+                <button class="remove-btn" @click="removeAlert(item.id)">
+                  <el-icon><Delete /></el-icon>
+                </button>
+              </div>
+            </div>
+            <div v-else class="empty-state">
+              <div class="empty-icon">
+                <el-icon :size="48"><Bell /></el-icon>
+              </div>
+              <h3>暂无价格提醒</h3>
+              <p>设置价格提醒，降价时第一时间通知你</p>
+              <router-link to="/search" class="empty-action">
                 去设置提醒
-              </el-button>
-            </el-empty>
+              </router-link>
+            </div>
           </div>
-        </el-tab-pane>
 
-        <el-tab-pane name="history">
-          <template #label>
-            <el-icon><Clock /></el-icon> 查询历史
-          </template>
-          <div class="tab-content">
+          <!-- History Tab -->
+          <div v-if="activeTab === 'history'" class="tab-panel">
             <div v-if="history.length > 0" class="history-list">
               <div
                 v-for="item in history"
                 :key="item.id"
                 class="history-item"
+                @click="reSearch(item.keyword)"
               >
-                <div class="history-info">
-                  <span class="history-keyword">{{ item.keyword || '全部车型' }}</span>
-                  <span class="history-count">{{ item.result_count }} 个结果</span>
-                  <span class="history-time">{{ formatDate(item.timestamp) }}</span>
+                <div class="history-icon">
+                  <el-icon><Search /></el-icon>
                 </div>
-                <div class="history-actions">
-                  <el-button type="primary" link @click="reSearch(item.keyword)">
-                    重新搜索
-                  </el-button>
+                <div class="history-content">
+                  <h4 class="history-keyword">{{ item.keyword || '全部车型' }}</h4>
+                  <p class="history-meta">
+                    <span>{{ item.result_count }} 个结果</span>
+                    <span>·</span>
+                    <span>{{ formatDate(item.timestamp) }}</span>
+                  </p>
                 </div>
+                <el-icon class="history-arrow"><ArrowRight /></el-icon>
               </div>
-              <div class="clear-history">
-                <el-button type="danger" link @click="clearAllHistory">
-                  <el-icon><Delete /></el-icon> 清空历史
-                </el-button>
-              </div>
+              <button class="clear-history" @click="clearAllHistory">
+                <el-icon><Delete /></el-icon>
+                清空历史记录
+              </button>
             </div>
-            <el-empty
-              v-else
-              description="暂无查询历史"
-              class="empty-content"
-            >
-              <el-button type="primary" @click="router.push('/search')">
-                去搜索
-              </el-button>
-            </el-empty>
+            <div v-else class="empty-state">
+              <div class="empty-icon">
+                <el-icon :size="48"><Clock /></el-icon>
+              </div>
+              <h3>暂无查询历史</h3>
+              <p>你的搜索记录会显示在这里</p>
+              <router-link to="/search" class="empty-action">
+                去搜索车型
+              </router-link>
+            </div>
           </div>
-        </el-tab-pane>
-      </el-tabs>
-    </el-card>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -162,7 +189,17 @@
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Star, Bell, Clock, UserFilled, Delete } from '@element-plus/icons-vue';
+import {
+  ArrowRight,
+  Star,
+  Bell,
+  Clock,
+  SwitchButton,
+  Delete,
+  Search,
+  CircleCheck,
+  CircleClose,
+} from '@element-plus/icons-vue';
 import { useAuthStore } from '@/stores';
 import { favoriteApi, priceAlertApi, searchHistoryApi } from '@/api';
 import type { Favorite, PriceAlert, SearchHistory } from '@/api/user';
@@ -174,9 +211,20 @@ const activeTab = ref('favorites');
 const favorites = ref<Favorite[]>([]);
 const alerts = ref<PriceAlert[]>([]);
 const history = ref<SearchHistory[]>([]);
-const loading = ref(false);
 
-// 获取收藏列表
+const user = authStore.user;
+
+const formatPrice = (price: number) => price.toFixed(2);
+
+const formatDate = (dateStr: string) => {
+  const date = new Date(dateStr);
+  return date.toLocaleDateString('zh-CN', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
+};
+
 const fetchFavorites = async () => {
   try {
     favorites.value = await favoriteApi.getFavorites();
@@ -185,7 +233,6 @@ const fetchFavorites = async () => {
   }
 };
 
-// 获取价格提醒列表
 const fetchAlerts = async () => {
   try {
     alerts.value = await priceAlertApi.getAlerts();
@@ -194,7 +241,6 @@ const fetchAlerts = async () => {
   }
 };
 
-// 获取查询历史
 const fetchHistory = async () => {
   try {
     history.value = await searchHistoryApi.getHistory();
@@ -203,12 +249,10 @@ const fetchHistory = async () => {
   }
 };
 
-// 查看车辆详情
 const viewCarDetail = (carId: string) => {
   router.push(`/car/${carId}`);
 };
 
-// 取消收藏
 const removeFavorite = async (carId: string) => {
   try {
     await ElMessageBox.confirm('确定要取消收藏该车型吗？', '提示', {
@@ -226,7 +270,6 @@ const removeFavorite = async (carId: string) => {
   }
 };
 
-// 删除价格提醒
 const removeAlert = async (alertId: string) => {
   try {
     await ElMessageBox.confirm('确定要删除该价格提醒吗？', '提示', {
@@ -244,7 +287,6 @@ const removeAlert = async (alertId: string) => {
   }
 };
 
-// 重新搜索
 const reSearch = (keyword?: string) => {
   if (keyword) {
     router.push(`/search?keyword=${encodeURIComponent(keyword)}`);
@@ -253,10 +295,9 @@ const reSearch = (keyword?: string) => {
   }
 };
 
-// 清空所有历史
 const clearAllHistory = async () => {
   try {
-    await ElMessageBox.confirm('确定要清空所有查询历史吗？此操作不可恢复。', '提示', {
+    await ElMessageBox.confirm('确定要清空所有查询历史吗？', '提示', {
       confirmButtonText: '确定',
       cancelButtonText: '取消',
       type: 'warning',
@@ -271,44 +312,10 @@ const clearAllHistory = async () => {
   }
 };
 
-// 获取提醒状态类型
-const getAlertStatusType = (status: string) => {
-  switch (status) {
-    case 'active':
-      return 'info';
-    case 'triggered':
-      return 'success';
-    case 'cancelled':
-      return 'danger';
-    default:
-      return 'info';
-  }
-};
-
-// 获取提醒状态文本
-const getAlertStatusText = (status: string) => {
-  switch (status) {
-    case 'active':
-      return '监控中';
-    case 'triggered':
-      return '已触发';
-    case 'cancelled':
-      return '已取消';
-    default:
-      return status;
-  }
-};
-
-// 格式化日期
-const formatDate = (dateStr: string) => {
-  const date = new Date(dateStr);
-  return date.toLocaleDateString('zh-CN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+const handleLogout = () => {
+  authStore.logout();
+  ElMessage.success('已退出登录');
+  router.push('/');
 };
 
 onMounted(() => {
@@ -320,153 +327,482 @@ onMounted(() => {
 
 <style scoped>
 .profile-page {
-  padding: 0 24px 24px;
+  padding-top: var(--header-height);
+  padding-bottom: var(--space-20);
 }
 
-.profile-card {
-  max-width: 1200px;
-  margin: 0 auto;
+/* Page Header */
+.page-header {
+  padding: var(--space-8) 0;
 }
 
-.profile-header {
+.breadcrumb {
   display: flex;
   align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+  font-size: var(--text-sm);
+}
+
+.breadcrumb-link {
+  color: var(--primary-600);
+  text-decoration: none;
+}
+
+.breadcrumb-separator {
+  color: var(--text-tertiary);
+  font-size: var(--text-xs);
+}
+
+.breadcrumb-current {
+  color: var(--text-secondary);
+}
+
+.page-title {
+  font-size: var(--text-3xl);
+  font-weight: var(--font-bold);
+  color: var(--text-primary);
+}
+
+/* User Card */
+.user-card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  background: linear-gradient(135deg, var(--primary-600) 0%, var(--primary-700) 100%);
+  border-radius: var(--radius-2xl);
+  padding: var(--space-6);
+  margin-bottom: var(--space-6);
+  color: white;
+}
+
+.user-avatar {
+  width: 80px;
+  height: 80px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: var(--radius-xl);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--text-3xl);
+  font-weight: var(--font-bold);
+  flex-shrink: 0;
 }
 
 .user-info {
+  flex: 1;
+}
+
+.user-name {
+  font-size: var(--text-2xl);
+  font-weight: var(--font-bold);
+  margin-bottom: var(--space-1);
+}
+
+.user-email {
+  font-size: var(--text-base);
+  color: rgba(255, 255, 255, 0.8);
+  margin: 0;
+}
+
+.logout-btn {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: var(--radius-lg);
+  color: white;
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  cursor: pointer;
+  transition: all var(--duration-fast);
 }
 
-.user-details h2 {
-  margin: 0 0 4px;
-  font-size: 20px;
+.logout-btn:hover {
+  background: rgba(255, 255, 255, 0.25);
 }
 
-.user-details p {
-  margin: 0;
-  color: #909399;
-  font-size: 14px;
+/* Content Card */
+.content-card {
+  background: var(--bg-primary);
+  border-radius: var(--radius-2xl);
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border-light);
+  overflow: hidden;
 }
 
-.profile-tabs {
-  min-height: 500px;
+/* Tabs Header */
+.tabs-header {
+  display: flex;
+  border-bottom: 1px solid var(--border-light);
+  padding: 0 var(--space-4);
+}
+
+.tab-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-5);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  font-size: var(--text-base);
+  font-weight: var(--font-medium);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--duration-fast);
+}
+
+.tab-btn:hover {
+  color: var(--text-primary);
+}
+
+.tab-btn.active {
+  color: var(--primary-600);
+  border-bottom-color: var(--primary-600);
 }
 
 .tab-badge {
-  margin-left: 4px;
-}
-
-.tab-content {
-  padding: 24px 0;
-}
-
-.favorite-item,
-.alert-item {
-  margin-bottom: 16px;
-}
-
-.favorite-car h4,
-.alert-info h4 {
-  margin: 0 0 8px;
-  font-size: 16px;
-}
-
-.price {
-  color: #f56c6c;
-  font-size: 18px;
-  font-weight: 600;
-  margin: 0 0 12px;
-}
-
-.actions {
-  display: flex;
-  gap: 8px;
-}
-
-.alert-header {
-  display: flex;
-  justify-content: space-between;
+  display: inline-flex;
   align-items: center;
-  margin-bottom: 8px;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 var(--space-1);
+  background: var(--error-500);
+  color: white;
+  font-size: var(--text-xs);
+  font-weight: var(--font-bold);
+  border-radius: var(--radius-full);
 }
 
-.target-price {
-  color: #f56c6c;
-  font-size: 16px;
-  font-weight: 500;
-  margin: 0 0 4px;
+/* Tabs Content */
+.tabs-content {
+  padding: var(--space-6);
+}
+
+.tab-panel {
+  min-height: 400px;
+}
+
+/* Items Grid */
+.items-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-4);
+}
+
+.favorite-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-xl);
+  cursor: pointer;
+  transition: all var(--duration-fast);
+}
+
+.favorite-item:hover {
+  background: var(--bg-secondary);
+}
+
+.item-image {
+  width: 80px;
+  height: 60px;
+  background: linear-gradient(135deg, var(--primary-100) 0%, var(--primary-200) 100%);
+  border-radius: var(--radius-lg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--primary-400);
+  flex-shrink: 0;
+}
+
+.item-image svg {
+  width: 32px;
+  height: 32px;
+}
+
+.item-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.item-title {
+  font-size: var(--text-base);
+  font-weight: var(--font-semibold);
+  color: var(--text-primary);
+  margin-bottom: var(--space-1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.item-price {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+}
+
+.price-label {
+  color: var(--text-tertiary);
+}
+
+.price-value {
+  font-weight: var(--font-bold);
+  color: var(--error-600);
+}
+
+.remove-btn {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  border-radius: var(--radius-md);
+  transition: all var(--duration-fast);
+}
+
+.remove-btn:hover {
+  background: var(--error-50);
+  color: var(--error-600);
+}
+
+/* Items List */
+.items-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.alert-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-xl);
+}
+
+.alert-status {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-lg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.alert-status.active {
+  background: var(--primary-100);
+  color: var(--primary-600);
+}
+
+.alert-status.triggered {
+  background: var(--success-100);
+  color: var(--success-600);
+}
+
+.alert-status.cancelled {
+  background: var(--gray-100);
+  color: var(--gray-500);
+}
+
+.alert-content {
+  flex: 1;
+}
+
+.alert-title {
+  font-size: var(--text-base);
+  font-weight: var(--font-semibold);
+  color: var(--text-primary);
+  margin-bottom: var(--space-1);
+}
+
+.alert-target {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  margin-bottom: var(--space-1);
+}
+
+.alert-target strong {
+  color: var(--primary-600);
 }
 
 .alert-date {
-  color: #909399;
-  font-size: 12px;
-  margin: 0 0 12px;
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+  margin: 0;
 }
 
+/* History List */
 .history-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--space-2);
 }
 
 .history-item {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 12px 16px;
-  background-color: #f5f7fa;
-  border-radius: 8px;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-xl);
+  cursor: pointer;
+  transition: all var(--duration-fast);
 }
 
-.history-info {
+.history-item:hover {
+  background: var(--bg-secondary);
+}
+
+.history-icon {
+  width: 44px;
+  height: 44px;
+  background: var(--primary-100);
+  border-radius: var(--radius-lg);
   display: flex;
   align-items: center;
-  gap: 16px;
+  justify-content: center;
+  color: var(--primary-600);
+  flex-shrink: 0;
+}
+
+.history-content {
+  flex: 1;
 }
 
 .history-keyword {
-  font-weight: 500;
-  color: #303133;
+  font-size: var(--text-base);
+  font-weight: var(--font-semibold);
+  color: var(--text-primary);
+  margin-bottom: var(--space-1);
 }
 
-.history-count {
-  color: #409eff;
-  font-size: 14px;
+.history-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--text-tertiary);
+  margin: 0;
 }
 
-.history-time {
-  color: #909399;
-  font-size: 12px;
+.history-arrow {
+  color: var(--text-tertiary);
 }
 
 .clear-history {
-  text-align: center;
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid #e4e7ed;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  background: transparent;
+  border: 1px dashed var(--border-medium);
+  border-radius: var(--radius-xl);
+  color: var(--text-tertiary);
+  font-size: var(--text-sm);
+  cursor: pointer;
+  transition: all var(--duration-fast);
+  margin-top: var(--space-2);
 }
 
-.empty-content {
-  padding: 80px 0;
+.clear-history:hover {
+  border-color: var(--error-300);
+  color: var(--error-600);
+  background: var(--error-50);
+}
+
+/* Empty State */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-16) 0;
+  text-align: center;
+}
+
+.empty-icon {
+  color: var(--text-tertiary);
+  margin-bottom: var(--space-4);
+}
+
+.empty-state h3 {
+  font-size: var(--text-xl);
+  font-weight: var(--font-semibold);
+  color: var(--text-primary);
+  margin-bottom: var(--space-2);
+}
+
+.empty-state p {
+  font-size: var(--text-base);
+  color: var(--text-secondary);
+  margin-bottom: var(--space-6);
+}
+
+.empty-action {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-3) var(--space-6);
+  background: var(--primary-600);
+  color: white;
+  border-radius: var(--radius-lg);
+  font-size: var(--text-base);
+  font-weight: var(--font-semibold);
+  text-decoration: none;
+  transition: all var(--duration-fast);
+}
+
+.empty-action:hover {
+  background: var(--primary-700);
+  transform: translateY(-1px);
+}
+
+/* Responsive */
+@media (max-width: 992px) {
+  .items-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 
 @media (max-width: 768px) {
-  .profile-page {
-    padding: 0 16px 16px;
-  }
-
-  .history-info {
+  .user-card {
     flex-direction: column;
-    align-items: flex-start;
-    gap: 4px;
+    text-align: center;
   }
-
-  .history-item {
+  
+  .tabs-header {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  .tab-btn {
+    white-space: nowrap;
+  }
+  
+  .items-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .favorite-item {
     flex-direction: column;
-    align-items: flex-start;
-    gap: 8px;
+    text-align: center;
+  }
+  
+  .item-content {
+    width: 100%;
   }
 }
 </style>

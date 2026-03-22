@@ -1,58 +1,86 @@
 <template>
-  <el-card
-    class="car-card"
-    :body-style="{ padding: '0px' }"
-    shadow="hover"
-    @click="handleClick"
-  >
-    <!-- Car Image -->
-    <div class="car-image">
-      <el-icon :size="48" color="#409EFF"><Van /></el-icon>
+  <div class="car-card" @click="handleClick">
+    <!-- Image -->
+    <div class="card-image">
+      <div class="image-placeholder">
+        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M5 10L3 16L5 16L7 10H5Z" fill="currentColor"/>
+          <path d="M19 10L21 16H19L17 10H19Z" fill="currentColor"/>
+          <path d="M7 10H17L16 7C15.5 6 14.5 5 12 5C9.5 5 8.5 6 8 7L7 10Z" fill="currentColor"/>
+          <path d="M6 12H18L17 18C16.5 19 15.5 20 12 20C8.5 20 7.5 19 7 18L6 12Z" fill="currentColor"/>
+        </svg>
+      </div>
+      <!-- Discount Badge -->
+      <div v-if="car.direct_discount > 0" class="discount-badge">
+        省 ¥{{ formatPrice(car.direct_discount) }}万
+      </div>
     </div>
 
-    <!-- Car Info -->
-    <div class="car-info">
-      <div class="car-title">
-        <span class="brand">{{ car.brand }}</span>
-        <span class="model">{{ car.model_name }}</span>
+    <!-- Content -->
+    <div class="card-content">
+      <!-- Header -->
+      <div class="card-header">
+        <div class="car-title">
+          <span class="brand">{{ car.brand }}</span>
+          <span class="model">{{ car.model_name }}</span>
+        </div>
+        <div class="car-meta">
+          <span class="year">{{ car.year }}款</span>
+          <span class="divider">·</span>
+          <span class="seats">{{ car.seat_count }}座</span>
+        </div>
       </div>
 
       <!-- Tags -->
-      <div class="car-tags">
-        <el-tag :type="energyTag.type" size="small">{{ energyTag.text }}</el-tag>
-        <el-tag :type="bodyTag.type" size="small">{{ bodyTag.text }}</el-tag>
-        <el-tag v-if="car.seat_count" size="small">{{ car.seat_count }}座</el-tag>
+      <div class="tag-list">
+        <span class="tag" :class="`tag-${energyTag.type}`">
+          {{ energyTag.text }}
+        </span>
+        <span class="tag tag-gray">
+          {{ bodyTag.text }}
+        </span>
       </div>
 
       <!-- Price -->
-      <div class="car-price">
-        <div class="price-official">
-          <span class="label">官方价</span>
-          <span class="value">¥{{ car.price_official.toFixed(2) }}万</span>
+      <div class="price-section">
+        <div class="price-main">
+          <span class="price-currency">¥</span>
+          <span class="price-value">{{ formatPrice(car.price_discount) }}</span>
+          <span class="price-unit">万</span>
         </div>
-        <div class="price-discount">
-          <span class="label">优惠价</span>
-          <span class="value">¥{{ car.price_discount.toFixed(2) }}万</span>
-        </div>
-        <div class="discount-amount">
-          省 ¥{{ car.direct_discount.toFixed(2) }}万
+        <div class="price-sub">
+          <span class="price-original">官方价 ¥{{ formatPrice(car.price_official) }}万</span>
         </div>
       </div>
 
       <!-- Subsidies -->
-      <div v-if="car.loan_subsidy_amount && car.loan_subsidy_amount > 0" class="subsidy-tags">
-        <el-tag type="warning" size="small">
-          贴息¥{{ car.loan_subsidy_amount.toFixed(2) }}万
-        </el-tag>
+      <div v-if="hasSubsidies" class="subsidy-list">
+        <div v-if="car.loan_subsidy_amount > 0" class="subsidy-item">
+          <span class="subsidy-dot"></span>
+          <span>贴息 ¥{{ formatPrice(car.loan_subsidy_amount) }}万</span>
+        </div>
+        <div v-if="car.replacement_subsidy > 0" class="subsidy-item">
+          <span class="subsidy-dot green"></span>
+          <span>置换 ¥{{ formatPrice(car.replacement_subsidy) }}万</span>
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <div class="card-footer">
+        <span class="region">{{ car.region }}</span>
+        <span class="action">
+          查看
+          <el-icon><ArrowRight /></el-icon>
+        </span>
       </div>
     </div>
-  </el-card>
+  </div>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useRouter } from 'vue-router';
-import { Van } from '@element-plus/icons-vue';
+import { ArrowRight } from '@element-plus/icons-vue';
 import type { Car } from '@/types';
 
 interface Props {
@@ -63,29 +91,36 @@ const props = defineProps<Props>();
 const router = useRouter();
 
 const energyTag = computed(() => {
-  const map: Record<string, { type: '' | 'success' | 'warning' | 'info' | 'danger'; text: string }> = {
-    petrol: { type: '', text: '燃油' },
-    diesel: { type: '', text: '柴油' },
-    hybrid: { type: 'success', text: '混动' },
-    phev: { type: 'info', text: '插混' },
-    bev: { type: 'success', text: '纯电' },
-    hydrogen: { type: 'warning', text: '氢能' },
+  const map: Record<string, { type: string; text: string }> = {
+    petrol: { type: 'gray', text: '燃油' },
+    diesel: { type: 'gray', text: '柴油' },
+    hybrid: { type: 'green', text: '混动' },
+    phev: { type: 'blue', text: '插混' },
+    bev: { type: 'green', text: '纯电' },
+    hydrogen: { type: 'orange', text: '氢能' },
   };
-  return map[props.car.energy_type] || { type: '', text: props.car.energy_type };
+  return map[props.car.energy_type] || { type: 'gray', text: props.car.energy_type };
 });
 
 const bodyTag = computed(() => {
-  const map: Record<string, { type: '' | 'success' | 'warning' | 'info' | 'danger'; text: string }> = {
-    sedan: { type: 'info', text: '轿车' },
-    suv: { type: 'warning', text: 'SUV' },
-    mpv: { type: '', text: 'MPV' },
-    hatchback: { type: '', text: '两厢' },
-    coupe: { type: 'danger', text: '跑车' },
-    pickup: { type: 'warning', text: '皮卡' },
-    wagon: { type: 'info', text: '旅行车' },
+  const map: Record<string, string> = {
+    sedan: '轿车',
+    suv: 'SUV',
+    mpv: 'MPV',
+    hatchback: '两厢',
+    coupe: '跑车',
+    pickup: '皮卡',
+    wagon: '旅行',
   };
-  return map[props.car.body_type] || { type: '', text: props.car.body_type };
+  return map[props.car.body_type] || props.car.body_type;
 });
+
+const hasSubsidies = computed(() => {
+  return (props.car.loan_subsidy_amount && props.car.loan_subsidy_amount > 0) ||
+         (props.car.replacement_subsidy && props.car.replacement_subsidy > 0);
+});
+
+const formatPrice = (price: number) => price.toFixed(2);
 
 const handleClick = () => {
   router.push(`/car/${props.car.id}`);
@@ -94,87 +129,265 @@ const handleClick = () => {
 
 <style scoped>
 .car-card {
+  background: var(--bg-primary);
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border-light);
+  transition: all var(--duration-normal) var(--ease-out);
   cursor: pointer;
-  transition: transform 0.2s;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 .car-card:hover {
   transform: translateY(-4px);
+  box-shadow: var(--shadow-lg);
+  border-color: var(--primary-200);
 }
 
-.car-image {
-  height: 160px;
-  background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+/* Image */
+.card-image {
+  position: relative;
+  aspect-ratio: 16/10;
+  background: linear-gradient(135deg, var(--primary-50) 0%, #e0e7ff 100%);
+  overflow: hidden;
+}
+
+.image-placeholder {
+  width: 100%;
+  height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
+  color: var(--primary-300);
 }
 
-.car-info {
-  padding: 16px;
+.image-placeholder svg {
+  width: 64px;
+  height: 64px;
+}
+
+.discount-badge {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  background: linear-gradient(135deg, var(--error-500) 0%, var(--error-600) 100%);
+  color: white;
+  font-size: var(--text-xs);
+  font-weight: var(--font-bold);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-full);
+  box-shadow: var(--shadow-md);
+}
+
+/* Content */
+.card-content {
+  padding: var(--space-5);
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Header */
+.card-header {
+  margin-bottom: var(--space-3);
 }
 
 .car-title {
-  margin-bottom: 12px;
-}
-
-.car-title .brand {
-  font-size: 18px;
-  font-weight: 600;
-  color: #212121;
-}
-
-.car-title .model {
-  margin-left: 8px;
-  font-size: 14px;
-  color: #666;
-}
-
-.car-tags {
-  margin-bottom: 12px;
   display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin-bottom: var(--space-1);
 }
 
-.car-price {
-  margin-bottom: 8px;
+.brand {
+  font-size: var(--text-lg);
+  font-weight: var(--font-bold);
+  color: var(--text-primary);
 }
 
-.price-official,
-.price-discount {
+.model {
+  font-size: var(--text-base);
+  color: var(--text-secondary);
+}
+
+.car-meta {
   display: flex;
-  justify-content: space-between;
-  margin-bottom: 4px;
-  font-size: 14px;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--text-tertiary);
 }
 
-.price-official .label {
-  color: #999;
+.divider {
+  color: var(--border-medium);
 }
 
-.price-official .value {
-  color: #666;
+/* Tags */
+.tag-list {
+  display: flex;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--text-xs);
+  font-weight: var(--font-semibold);
+  border-radius: var(--radius-full);
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+}
+
+.tag-blue {
+  background: var(--primary-100);
+  color: var(--primary-700);
+}
+
+.tag-green {
+  background: var(--success-100);
+  color: var(--success-600);
+}
+
+.tag-orange {
+  background: var(--accent-100);
+  color: var(--accent-700);
+}
+
+.tag-gray {
+  background: var(--gray-100);
+  color: var(--gray-600);
+}
+
+/* Price */
+.price-section {
+  margin-top: auto;
+  padding: var(--space-4) 0;
+  border-top: 1px solid var(--border-light);
+  border-bottom: 1px solid var(--border-light);
+  margin-bottom: var(--space-3);
+}
+
+.price-main {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-1);
+  margin-bottom: var(--space-1);
+}
+
+.price-currency {
+  font-size: var(--text-lg);
+  font-weight: var(--font-bold);
+  color: var(--error-600);
+  line-height: 1;
+}
+
+.price-value {
+  font-size: var(--text-3xl);
+  font-weight: var(--font-bold);
+  color: var(--error-600);
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+.price-unit {
+  font-size: var(--text-base);
+  font-weight: var(--font-semibold);
+  color: var(--error-600);
+  line-height: 1.2;
+}
+
+.price-sub {
+  font-size: var(--text-sm);
+  color: var(--text-tertiary);
+}
+
+.price-original {
   text-decoration: line-through;
 }
 
-.price-discount .label {
-  color: #999;
+/* Subsidies */
+.subsidy-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
 }
 
-.price-discount .value {
-  color: #2e7d32;
-  font-size: 20px;
-  font-weight: 600;
+.subsidy-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
 }
 
-.discount-amount {
-  font-size: 12px;
-  color: #e65100;
-  text-align: right;
+.subsidy-dot {
+  width: 6px;
+  height: 6px;
+  background: var(--accent-500);
+  border-radius: var(--radius-full);
 }
 
-.subsidy-tags {
-  margin-top: 8px;
+.subsidy-dot.green {
+  background: var(--success-500);
+}
+
+/* Footer */
+.card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: auto;
+}
+
+.region {
+  font-size: var(--text-sm);
+  color: var(--text-tertiary);
+}
+
+.action {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+  color: var(--primary-600);
+  transition: color var(--duration-fast);
+}
+
+.car-card:hover .action {
+  color: var(--primary-700);
+}
+
+.action .el-icon {
+  transition: transform var(--duration-fast);
+}
+
+.car-card:hover .action .el-icon {
+  transform: translateX(2px);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .card-content {
+    padding: var(--space-4);
+  }
+  
+  .brand {
+    font-size: var(--text-base);
+  }
+  
+  .model {
+    font-size: var(--text-sm);
+  }
+  
+  .price-value {
+    font-size: var(--text-2xl);
+  }
 }
 </style>
